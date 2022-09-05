@@ -7,7 +7,9 @@
 
 (define median-of-three
   (lambda (a b c)
-    'nyi))
+    (- (+ a b c)
+       (max a b c)
+       (min a b c))))
 
 ; (add-n-to-each n lon) Given a list of numbers lon and a number n,
 ;   return a new list of numbers where each element is n more than
@@ -15,13 +17,18 @@
 
 (define add-n-to-each
   (lambda (n lon)
-    'nyi))
+    (if (null? lon)
+        '()
+        (cons (+ n (car lon))
+              (add-n-to-each n (cdr lon))))))
 
 ; (count-occurrences n lon) counts how many times n appears in lon
 
 (define count-occurrences
   (lambda (n lon)
-    'nyi))
+    (cond [(null? lon) 0]
+          [(= (car lon) n) (add1 (count-occurrences n (cdr lon)))]
+          [else (count-occurrences n (cdr lon))])))
 
 ; I reccommend you try to solve all of these with the same
 ; cond style we used with count-occurances
@@ -29,7 +36,9 @@
 ; (remove-zeros lon) removes all the zeros from a list of numbers
 (define remove-zeros
   (lambda (lon)
-    'nyi))
+    (cond [(null? lon) '()]
+          [(= (car lon) 0) (remove-zeros (cdr lon))]
+          [else (cons (car lon) (remove-zeros (cdr lon)))])))
 
 ; (sum-pairs lon) take a list of number and returns a list of half the size
 ; with each pair added.  If the list has an odd length, the last element

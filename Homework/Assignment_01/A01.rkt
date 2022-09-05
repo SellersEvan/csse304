@@ -1,46 +1,54 @@
 #lang racket
 
+; Evan Sellers - HW 1
+
 (provide interval-contains? interval-intersects? interval-union my-first my-second my-third make-vec-from-points dot-product vector-magnitude distance)
 
 (define interval-contains?
   (lambda (a b)
-    (nyi)))
+    (and (<= (car a) b) (>= (cadr a) b))))
 
 (define interval-intersects?
   (lambda (a b)
-    (nyi)))
+    [or [or (interval-contains? b (car a)) (interval-contains? b (cadr a))]
+        [or (interval-contains? a (car b)) (interval-contains? a (cadr b))]]))
 
 (define interval-union
   (lambda (a b)
-    (nyi)))
+    [cond [(interval-intersects? a b) (cons (cons (min (car a) (car b)) (cons (max (cadr a) (cadr b)) '())) '())]
+          [else (cons a (cons b '()))]]))
 
 (define my-first
   (lambda (a)
-    (nyi)))
+    (car a)))
 
 (define my-second
   (lambda (a)
-    (nyi)))
+    (cadr a)))
 
 (define my-third
   (lambda (a)
-    (nyi)))
+    (caddr a)))
 
 (define make-vec-from-points
   (lambda (a b)
-    (nyi)))
+    [list (- (my-first b) (my-first a) )
+          (- (my-second b) (my-second a) )
+          (- (my-third b) (my-third a) )]))
 
 (define dot-product
   (lambda (a b)
-    (nyi)))
+    (+ [* (my-first b) (my-first a)]
+         [* (my-second b) (my-second a)]
+         [* (my-third b) (my-third a)])))
 
 (define vector-magnitude
   (lambda (a)
-    (nyi)))
+    (sqrt (dot-product a a))))
 
 (define distance
   (lambda (a b)
-    (nyi)))
+    (vector-magnitude (make-vec-from-points a b))))
 
 ;;--------  Used by the testing mechanism   ------------------
 

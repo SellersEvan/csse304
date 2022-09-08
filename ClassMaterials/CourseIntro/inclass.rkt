@@ -5,9 +5,17 @@
 ;
 ; (num-positive '(1 -2 0 100 77)) -> 3
 
+(define num-positive-helper
+  (lambda (lon count)
+    (cond [(null? lon) count]
+          [(equal? 0 (length lon)) count]
+          [(< 0 (car lon)) (num-positive-helper (cdr lon) (add1 count))]
+          [else (num-positive-helper (cdr lon) count)])))
+
+
 (define num-positive
   (lambda (lon)
-    'nyi))
+    (num-positive-helper lon 0)))
 
 ; you'll want a helper function
 ;(define num-positive-recur

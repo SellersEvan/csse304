@@ -29,16 +29,19 @@
 ;; note these are lists, not scheme "pairs"
 (define sum-pairs
   (lambda (pairlist)
-    '() ;; NYI
+    (apply map + (apply map list pairlist)) ;; NYI
   ))
 
+(display 'sum-pairs)
 (sum-pairs '((1 2) (3 4))) ;; should yield (3 7)
 
 ;; take a list of numbers, and halve all the even ones
 ;; note that in scheme the % operator is called modulo
 (define halve-evens
   (lambda (pairlist)
-    '() ;; NYI
+    (map (lambda (num)
+                 (cond [(equal? 0 (modulo num 2)) (/ num 2)]
+                       [else num])) pairlist) ;; NYI
   ))
 
 (halve-evens '(1 2 3 40 60)) ;; should yield (1 1 3 20 30)

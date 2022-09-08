@@ -33,6 +33,7 @@
     [(subset? '(1 3 4) '(1 2 3 4 5)) #t 1] ; (run-test subset? 5)
     [(subset? '() '()) #t 1] ; (run-test subset? 6)
     [(subset? '() '(x y)) #t 1] ; (run-test subset? 7)
+    [(subset? '(b e c d) '(c b e d)) #t 1] ; (run-test subset? 8)
   )
 
   (relation? equal? ; (run-test relation?)

@@ -74,7 +74,7 @@
                (list slist #f))]
           [else (let* ([replace replace] [pattern pattern] [predicate predicate] [next-obj (subst-leftmost-helper replace pattern (car slist) predicate)] [carSym (car next-obj)] [hasMatch? (cadr next-obj)])
                   (cond [hasMatch? (list (cons carSym (cdr slist)) #t)]
-                        [else (let* ([carSym carSym] [next-obj (subst-leftmost-helper replace pattern (car slist) predicate)] [cdrSym (car next-obj)] [hasMatch? (cadr next-obj)])
+                        [else (let* ([carSym carSym] [next-obj (subst-leftmost-helper replace pattern (cdr slist) predicate)] [cdrSym (car next-obj)] [hasMatch? (cadr next-obj)])
                                 (cond [hasMatch? (list (cons carSym cdrSym) #t)]
                                       [else (list (cons carSym cdrSym) #f)]))]))])))
 

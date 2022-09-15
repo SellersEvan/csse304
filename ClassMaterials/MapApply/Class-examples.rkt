@@ -101,7 +101,8 @@
 
 (define make-list-cleaner
   (lambda (value-to-clean)
-    'nyi))
+    (lambda (list)
+      (filter (lambda (a) (not (equal? a value-to-clean)))) list)))
 
 (define remove-zeros (make-list-cleaner 0))
 (define remove-qs (make-list-cleaner 'q))

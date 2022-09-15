@@ -8,9 +8,15 @@
 
 ;-------------------------------------------------------------
 ; Does slist contain sym (at any level)?
-(define (contains? slist sym)
+(define (contains? slist sym) ; (define contains? (lambda (slist sym)...
   (let in-list? ([slist slist]) ; We'll use named-let a lot today
-    (cond [(null? slist)
+    (cond [(null? slist) #f]
+	  [(symbol? (car slist))
+	   (or (eq? sym (car slist))
+	       (in-list? (cdr slist)))]
+	  [else ; car is an s-list
+	   (or (in-list? (car slist))
+	       (in-list? (cdr slist)))])))
 
 
 
@@ -26,8 +32,12 @@
 ; how many times does sym occur in slist?
 (define  (count-occurrences slist sym)
   (let count ([slist slist])
-    (cond [(null? slist)
-	  
+    (cond [(null? slist) 0]
+	  [(symbol? (car slist))
+	   (+ (cond [(eq? sym (car slist)) 1]
+                    [else 0])
+	       (count (cdr slist)))]
+	  [else (+ (count (car slist)) (count (cdr slist)))])))
 
 
 (count-occurrences '() 'a)                      ; 0

@@ -116,7 +116,7 @@
 
   (un-lexical-address equal? ; (run-test un-lexical-address)
     [(un-lexical-address (lexical-address (quote (x y)))) '(x y) 4] ; (run-test un-lexical-address 1)
-    [(un-lexical-address (lexical-address (quote (if ((lambda (x) (y x)) (lambda (y) (y x))) (lambda (z) (if x y (cons z z))) (x y))))) '(if ((lambda (x) (y x)) (lambda (y) (y x))) (lambda (z) (if x y (cons z z))) (x y)) 6] ; (run-test un-lexical-address 2)
+    [(un-lexical-address (lexical-address (quote (if ((lambda (x) (y x)) (lambda (y) (y x))) (lambda (z) (if x y (cons z z))) (x y)))))'(if ((lambda (x) (y x)) (lambda (y) (y x))) (lambda (z) (if x y (cons z z))) (x y)) 6] ; (run-test un-lexical-address 2)
     [(un-lexical-address (lexical-address (quote (lambda (x y) (lambda () ((lambda (z) (lambda (x w) (lambda () (x y z w)))) (x y z w))))))) '(lambda (x y) (lambda () ((lambda (z) (lambda (x w) (lambda () (x y z w)))) (x y z w)))) 6] ; (run-test un-lexical-address 3)
     [(un-lexical-address (lexical-address (quote (+ a (let ((a b) (b a)) (a b)))))) '(+ a (let ((a b) (b a)) (a b))) 4] ; (run-test un-lexical-address 4)
     [(un-lexical-address (lexical-address (quote (lambda (a b) (+ a b (let ((x (+ a c)) (y (- a b))) (let ((x x) (z (+ y a)) (w (b x))) ((lambda (t) (a (lambda (a) (x y a b)))) (t w))))))))) '(lambda (a b) (+ a b (let ((x (+ a c)) (y (- a b))) (let ((x x) (z (+ y a)) (w (b x))) ((lambda (t) (a (lambda (a) (x y a b)))) (t w)))))) 5] ; (run-test un-lexical-address 5)

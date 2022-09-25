@@ -2,7 +2,9 @@
 
 (define make-bank-account
   (lambda (starting-balance)
-    'nyi)) 
+    (let ([accountBalance starting-balance])
+      (lambda (msg . args)
+        (case ))))) 
 
 ; hint, you might find the lambda form with required
 ; and optional args useful here

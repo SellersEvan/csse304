@@ -5,44 +5,11 @@
 
 
 
-;(define slist-car
-;  (lambda (a)
-;    (cond [(not (list? a)) a]
-;          [(equal? 0 (length a)) false]
-;          [(slist-car (car a)) (slist-car (car a))]
-;          [else (slist-car (cdr a))])))
-
-
-;(define slist-not-empty?
-;  (lambda (a)
-;    (cond [(null? a) false]
-;          [(not (list? a)) true]
-;          [(equal? 0 (length a)) false]
-;          [else (or (slist-not-empty? (car a)) (slist-not-empty? (cdr a)))])))
-
-
-;(define slist-cdr
-;  (lambda (a)
-;    (cond [(equal? 0 (length a)) '()]
-;          [(not (list? (car a))) (cdr a)]
-;          [(equal? 0 (length (car a))) (slist-cdr (cdr a))]
-;          [(slist-not-empty? (car a)) (append (slist-cdr (car a)) (cdr a))]
-;          [else (slist-cdr (cdr a))])))
-
-;(define make-slist-leaf-iterator
-;  (lambda (a)
-;      (lambda (cmd)
-;        (cond [(equal? 'next cmd)
-;               (define result (slist-car a))
-;               (set! a (slist-cdr a)) result]
-;              [else false]))))
-
-
 (define make-stack
   (lambda (stack)
     (let ([stk stack])
       (lambda (msg . args ) 
-        (case msg ; Scheme's case is a similar to switch in some other languages.
+        (case msg
           [(empty?) (null? stk)]
           [(push) (set! stk (cons (car args) stk))]
           [(pop) (let ([top (car stk)])
@@ -66,25 +33,20 @@
                                      (slist-cdr-helper slistStack)]))))])))))
 
 
-(define subst-leftmost-helper
-  (trace-lambda (replace pattern slist predicate)
-    (cond [(symbol? slist)
-           (if (predicate pattern slist)
-               (list replace #t)
-               (list slist #f))]
-          [else (let* ([replace replace] [pattern pattern] [predicate predicate] [next-obj (subst-leftmost-helper replace pattern (car slist) predicate)] [carSym (car next-obj)] [hasMatch? (cadr next-obj)])
-                  (cond [hasMatch? (list (cons carSym (cdr slist)) #t)]
-                        [else (let* ([carSym carSym] [next-obj (subst-leftmost-helper replace pattern (cdr slist) predicate)] [cdrSym (car next-obj)] [hasMatch? (cadr next-obj)])
-                                (cond [hasMatch? (list (cons carSym cdrSym) #t)]
-                                      [else (list (cons carSym cdrSym) #f)]))]))])))
-
-
-(subst-leftmost-helper 'a 'b '(c a b) equal?)
-
-
 (define subst-leftmost
   (lambda (replace pattern slist predicate)
-    (nyi)))
+    (car (let subst-leftmost-helper ([replace replace] [pattern pattern] [slist slist] [predicate predicate])
+           (cond [(symbol? slist)
+                  (if (predicate pattern slist)
+                      (list replace #t)
+                      (list slist #f))]
+                 [(null? slist) (list slist #f)]
+                 [else (let* ([replace replace] [pattern pattern] [predicate predicate] [next-obj (subst-leftmost-helper replace pattern (car slist) predicate)] [carSym (car next-obj)] [hasMatch? (cadr next-obj)])
+                         (cond [hasMatch? (list (cons carSym (cdr slist)) #t)]
+                               [else (let* ([carSym carSym] [next-obj (subst-leftmost-helper replace pattern (cdr slist) predicate)] [cdrSym (car next-obj)] [hasMatch? (cadr next-obj)])
+                                       (cond [hasMatch? (list (cons carSym cdrSym) #t)]
+                                             [else (list (cons carSym cdrSym) #f)]))]))])))))
+
 
 ;;--------  Used by the testing mechanism   ------------------
 

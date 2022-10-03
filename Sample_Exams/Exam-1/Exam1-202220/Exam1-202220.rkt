@@ -140,7 +140,12 @@
 
 (define listbox-func
   (lambda (func)
-    (nyi)))
+    (lambda a
+      (list (apply + (map car a))))))
+
+(define L+ (listbox-func +))
+(L+ '(1) '(2))
+(L+ '(1) '(2) (L+ '(3) '(4)))
 
 ;;--------  Used by the testing mechanism   ------------------
 

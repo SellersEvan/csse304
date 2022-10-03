@@ -1,3 +1,7 @@
+#lang racket
+(require racket/trace)
+(provide set-subtract sublist? remove-depth make-bag swap-two-params add-unused)
+
 ;; EXAM 1 202210 COMPUTER PART
 
 ;; You may use your notes, Chez Scheme, the three textbooks from the
@@ -31,7 +35,10 @@
 ;; Note that although there are more efficient solutions possible,
 ;; I'll be satisfied with an O(n^2) algorithm here.
 (define (set-subtract set subtractme)
-  'nyi)
+  (let set-subtract-helper ([set set][subtractme subtractme])
+    (cond [(empty? set) set]
+          [(ormap (lambda (elm) (equal? elm (car set))) subtractme) (set-subtract-helper (cdr set) subtractme)]
+          [else (cons (car set) (set-subtract-helper (cdr set) subtractme))])))
 
 
 ;; QUESTION 2: sublist (12 points)
@@ -51,8 +58,11 @@
 ;; > (sublist? '(1 2 99 100 3 4) '())
 ;; #t
 
-(define (sublist? big little)
-  'nyi)
+(define sublist?
+  (lambda (big little)
+    (cond [(empty? little) #true]
+          [(equal? (car big) (car little)) (or (sublist? (cdr big) (cdr little)) (sublist? (cdr big) little))]
+          [else #false])))
 
 ;; QUESTION 3: remove depth (12 points)
 ;;
@@ -73,8 +83,13 @@
 ;; Note that you can assume depth will always be >= 2 (hopefully on
 ;; consideration you'll realize that attempting to remove depth
 ;; 1 isn't possible)
-(define (remove-depth depth slist)
-  'nyi)
+(define remove-depth
+  (lambda (depth slist)
+      (cond [(symbol? slist) slist]
+            [(empty? slist) slist]
+            [(and (equal? depth 2) (list? (car slist))) (append (remove-depth (- depth 1) (car slist)) (remove-depth depth (cdr slist)))]
+            [else (cons (remove-depth (- depth 1) (car slist)) (remove-depth depth (cdr slist)))])))
+
 
 ;; QUESTION 4: bag (12 points)
 ;;
@@ -105,8 +120,18 @@
 ;;   (b1 'add 'x)
 ;;   (b1 'count 'x)) ;; yields 2
 
-(define (make-bag)
-  'nyi)
+
+(define make-bag
+  (lambda ()
+    (let ([keys '()]) ; [(key count) ...]
+      (lambda (proc key)
+        (set! keys (if (ormap (lambda (entry) (equal? (car entry) key)) keys) keys
+            (cons (list key 0) keys)))
+        (case proc
+          [(add) (set! keys (map (lambda (entry) (if (equal? (car entry) key) (list (car entry) (add1 (cadr entry))) entry)) keys))]
+          [(count) (apply + (map (lambda (entry) (if (equal? (car entry) key) (cadr entry) 0)) keys))]
+          [(remove) (set! keys (map (lambda (entry) (if (equal? (car entry) key) (list (car entry) 0) entry)) keys))]
+          [else (display 'error)])))))
 
 ;; QUESTION 5: swap-two-params (6 points)
 ;;
@@ -128,8 +153,12 @@
 ;; hint: I've used the form of define that makes the lambda implicit
 ;; here, as in the other problems.  You might find it easier to use
 ;; the form of define that requires you to explicitly say lambda.
-(define (swap-two-params cur-fun)
-  'nyi)
+(define swap-two-params
+  (lambda (proc)
+    (lambda (a)
+      (lambda (b)
+        ((proc b) a)))))
+
 
 
 ;; QUESTION 6: add unused (6 points)
@@ -151,6 +180,8 @@
 ;; parameters passed to the resultant function (i.e. we ignore 15 and
 ;; 6 and then add 20 and 30).
 
-(define (add-unused curried-func num)
-  'nyi)
+(define add-unused
+  (lambda (curried-func num)
+      (cond [(equal? 0 num) curried-func]
+            [else (lambda (unused) (add-unused curried-func (- num 1)))])))
 

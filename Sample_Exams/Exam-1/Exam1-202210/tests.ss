@@ -1,3 +1,7 @@
+#lang racket
+(require "exam1-computer.ss")
+
+
 (define (test-set-subtract)
   (let ([correct '((c a) (c) () () (a b c) (a c f g h))]
         [answers 
@@ -9,6 +13,8 @@
                (set-subtract '(a b c e f g h i) '(e i b)))])
                
     (display-results correct answers set-equals?)))
+
+
 
 (define (test-sublist?)
   (let ([correct '(#t #t #t #f #f #t #f #t #t)]
@@ -147,3 +153,5 @@
   )
 
 (define r run-all)
+
+(r)

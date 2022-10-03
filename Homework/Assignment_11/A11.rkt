@@ -88,17 +88,45 @@
 
 ; You will want to replace this with your parser that includes more expression types, more options for these types, and error-checking.
 
+
+
+(define lambda-params?
+  (lambda (o)
+    (or (symbol? o) (and (list? o) (andmap symbol? o)))))
+
+
+(define let-params?
+  (lambda (o validateValue)
+    (and (list? o) (andmap (lambda (p)
+              (and (list? p) (equal? 2 (length p)) (symbol? (car p)) (validateValue (cadr p)))) o))))
+    
+
+
+
+
 (define-datatype expression expression?
   [var-exp
    (id symbol?)]
   [lit-exp
    (data number?)]
+  [set-exp
+   (symbol symbol?)
+   (value expression?)]
   [lambda-exp
-   (id (lambda (o) (or (symbol? o) (and (list? o) (andmap symbol? o)))))
+   (id lambda-params?)
    (body expression?)]
   [app-exp
    (rator expression?)
    (rand (lambda (o) (and (list? o) (andmap expression? o))))]
+  [let-exp
+   (params (lambda (o) (let-params? o expression?)))
+   (body expression?)]
+  [let*-exp
+   (params (lambda (o) (let-params? o expression?)))
+   (body expression?)]
+  [letrec-exp
+   (params (lambda (o) (let-params? o expression?)))
+   (body expression?)]
   )
 
 
@@ -114,19 +142,27 @@
       [(symbol? datum) (var-exp datum)]
       [(number? datum) (lit-exp datum)]
       [(list? datum) (cond [(equal? (car datum) 'lambda)
-                            (if (and (< 2 (length datum)) (or (symbol? (2nd datum)) (andmap symbol? (2nd datum))))
+                            (if (and (< 2 (length datum)) (lambda-params? (2nd datum)))
                                (lambda-exp (2nd datum) (parse-exp (cddr datum)))
                                 (error 'parse-exp "bad expression: ~s" datum))]
                            [(equal? (car datum) 'if)
-                            '(var-exp xxx)]
+                            (error 'parse-exp "bad expression: ~s" datum)]
                            [(equal? (car datum) 'let)
-                            '(var-exp xxx)]
+                            (if (and (< 2 (length datum)) (let-params? (cadr datum) parse-exp))
+                                (let-exp (map (lambda (o) (list (car o) (parse-exp (cadr o)))) (2nd datum)) (parse-exp (cddr datum)))
+                                (error 'parse-exp "bad expression: ~s" datum))]
                            [(equal? (car datum) 'letrec)
-                            '(var-exp xxx)]
+                            (if (and (< 2 (length datum)) (let-params? (cadr datum) parse-exp))
+                                (letrec-exp (map (lambda (o) (list (car o) (parse-exp (cadr o)))) (2nd datum)) (parse-exp (cddr datum)))
+                                (error 'parse-exp "bad expression: ~s" datum))]
                            [(equal? (car datum) 'let*)
-                            '(var-exp xxx)]
+                            (if (and (< 2 (length datum)) (let-params? (cadr datum) parse-exp))
+                                (let*-exp (map (lambda (o) (list (car o) (parse-exp (cadr o)))) (2nd datum)) (parse-exp (cddr datum)))
+                                (error 'parse-exp "bad expression: ~s" datum))]
                            [(equal? (car datum) 'set!)
-                            '(var-exp xxx)]
+                            (if (and (equal? 3 (length datum)) (symbol? (2nd datum)) (parse-exp (3rd datum)))
+                                (set-exp (2nd datum) (parse-exp (3rd datum)))
+                                (error 'parse-exp "bad expression: ~s" datum))]
                            [else (let ([sym (parse-exp (1st datum))] [parms (map parse-exp (cdr datum))])
                                                    (if (and sym (andmap (lambda (o) o) parms))
                                                        (app-exp sym parms)
@@ -134,15 +170,18 @@
       [else (error 'parse-exp "bad expression: ~s" datum)])))
 
 
-
-;(parse-exp '(+ 2 3))
-;(parse-exp (quote (lambda (x) (+ 2 3))))
-(parse-exp (quote (lambda x y z)))
+(parse-exp (quote (lambda (x) (+ x 5))))
 
 (define unparse-exp
   (lambda (exp)
     (cases expression exp
       [var-exp (id) id]
+      [lit-exp (data) data]
+      [lambda-exp (id body) (append (list 'lambda id) (unparse-exp body))]
+      [app-exp (rator rand) (cons (unparse-exp rator) (map unparse-exp rand))]
+      [let-exp (params body) (append (list 'let (map (lambda (o) (list (car o) (unparse-exp (cadr o)))) params)) (unparse-exp body))]
+      [let*-exp (params body) (append (list 'let* (map (lambda (o) (list (car o) (unparse-exp (cadr o)))) params)) (unparse-exp body))]
+      [letrec-exp (params body) (append (list 'letrec (map (lambda (o) (list (car o) (unparse-exp (cadr o)))) params)) (unparse-exp body))]
       [else 'x])))
 
 

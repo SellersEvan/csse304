@@ -11,6 +11,8 @@
 (require "interpreter.rkt")
 (provide get-weights get-names individual-test test)
 
+
+
 (define test (make-test ; (r)
   (literals equal? ; (run-test literals)
     [(eval-one-exp ''()) '() 1] ; (run-test literals 1)
@@ -20,6 +22,12 @@
     [(eval-one-exp "test") '"test" 1] ; (run-test literals 5)
     [(eval-one-exp ''#(a b c)) #(a b c) 1] ; (run-test literals 6)
     [(eval-one-exp ''#5(a)) #5(a) 1] ; (run-test literals 7)
+
+    ; Added Tests
+    [(eval-one-exp ''(1 2 3 4 (a b c (#t #f)))) '(1 2 3 4 (a b c (#t #f))) 1] ; (run-test literals 8)
+    [(eval-one-exp 999) 999 1] ; (run-test literals 9)
+    [(eval-one-exp -98) -98 1] ; (run-test literals 10)
+    [(eval-one-exp 1.2) 1.2 1] ; (run-test literals 11)
   )
 
   (quote equal? ; (run-test quote)
@@ -35,9 +43,25 @@
     [(eval-one-exp '(if #f 5 6)) 6 1] ; (run-test if 3)
     [(eval-one-exp '(if 1 2 3)) 2 1] ; (run-test if 4)
     [(let ((x (if #f 2 3))) (+ x 7)) 10 1] ; (run-test if 5)
+
+    ; Added Tests
+    [(eval-one-exp '(if "foo" #t #f)) (if "foo" #t #f) 1] ; (run-test if 6)
+    [(eval-one-exp '(if "false" #t #f)) (if "false" #t #f) 1] ; (run-test if 7)
+    [(eval-one-exp '(if 1.1 #t #f)) (if 1.1 #t #f) 1] ; (run-test if 8)
+    [(eval-one-exp '(if -2 #t #f)) (if -2 #t #f) 1] ; (run-test if 9)
+    [(eval-one-exp '(if 0 #t #f)) (if 0 #t #f) 1] ; (run-test if 10)
+    [(eval-one-exp '(if '() #t #f)) (if '() #t #f) 1] ; (run-test if 11)
+    [(eval-one-exp '(if '(1 2) #t #f)) (if '(1 2) #t #f) 1] ; (run-test if 12)
+    [(eval-one-exp '(if '(#f) #t #f)) (if '(#f) #t #f) 1] ; (run-test if 13)
+    [(eval-one-exp '(if '#() #t #f)) (if '#() #t #f) 1] ; (run-test if 14)
+    [(eval-one-exp '(if (if #t 21 #f) 22 23)) (if (if #t 21 #f) 22 23) 1] ; (run-test if 15)
+    [(eval-one-exp '(if (if #f 21 #f) (if #t 21 #f) 0)) (if (if #f 21 #f) (if #t 21 #f) 0) 1] ; (run-test if 16)
+    [(eval-one-exp '(if (if #f 21 #f) 0 (if #t 21 #f))) (if (if #f 21 #f) 0 (if #t 21 #f)) 1] ; (run-test if 17)
   )
 
   (primitive-procedures equal? ; (run-test primitive-procedures)
+
+                        
     [(eval-one-exp '(+ (+ 1 2) 3 4)) 10 1] ; (run-test primitive-procedures 1)
     [(eval-one-exp '(- 10 1 (- 5 3))) 7 1] ; (run-test primitive-procedures 2)
     [(eval-one-exp '(* 2 (* 3 4) 2)) 48 1] ; (run-test primitive-procedures 3)
@@ -65,15 +89,32 @@
     [(eval-one-exp '(caar '((a b) c))) 'a 1] ; (run-test primitive-procedures 23)
     [(eval-one-exp '(cadr '((a b) c))) 'c 1] ; (run-test primitive-procedures 24)
     [(eval-one-exp '(cadar '((a b) c))) 'b 1] ; (run-test primitive-procedures 25)
-    [(eval-one-exp ' (list (procedure? list) (procedure? (lambda (x y) (list (+ x y)))) (procedure? 'list))) '(#t #t #f) 3] ; (run-test primitive-procedures 26)
+    [(eval-one-exp '(list (procedure? list) (procedure? (lambda (x y) (list (+ x y)))) (procedure? 'list))) '(#t #t #f) 3] ; (run-test primitive-procedures 26)
+
+    ; Added Tests
+    [(eval-one-exp '(+)) 0 1] 
+    [(eval-one-exp '(+ 1)) 1 1]
+    [(eval-one-exp '(+ 3 4)) 7 1]
+    [(eval-one-exp '(+ (+ 1 2) 4)) 7 1]
+    [(eval-one-exp '(+ (+ 1 2) 3 4)) 10 1]
+    [(eval-one-exp '(- 2)) -2 1]
+    [(eval-one-exp '(*)) 1 1]
+    [(eval-one-exp '(* 2)) 2 1]
+    [(eval-one-exp '(/ 2)) 1/2 1]
+    [(eval-one-exp '(not 1)) #f 1]
+    [(eval-one-exp '(not #t)) #f 1]
+    [(eval-one-exp '(not #f)) #t 1]
+    [(eval-one-exp '(not 0)) #f 1]
+    [(eval-one-exp '(not "foo")) #f 1]
+    [(eval-one-exp '(not '(#f))) #f 1]
   )
 
   (let equal? ; (run-test let)
-    [(eval-one-exp ' (let ((a 3)(b 5)) (+ a b))) 8 3] ; (run-test let 1)
-    [(eval-one-exp ' (let ((a 3)) (let ((b 2) (c (+ a 3)) (a (+ a a))) (+ a b c)))) 14 5] ; (run-test let 2)
-    [(eval-one-exp ' (let ((a 3)) (let ((a (let ((a (+ a a))) (+ a a)))) (+ a a)))) 24 6] ; (run-test let 3)
-    [(eval-one-exp ' (let ((a (vector 0 1 2 3))) (vector-set! a 1 38) (vector-set! a 2 (vector-ref a 1)) (vector-ref a 2))) 38 6] ; (run-test let 4)
-    [(eval-one-exp '(let ([compose2 (lambda (f g) (lambda (x) (f (g x))))]) (let ([h  (let ([g (lambda (x) (+ 1 x))] [f (lambda (y) (* 2 y))]) (compose2 g f))]) (h 4)))) 9 6] ; (run-test let 5)
+    [(eval-one-exp '(let ((a 3)(b 5)) (+ a b))) 8 3] ; (run-test let 1)
+    [(eval-one-exp '(let ((a 3)) (let ((b 2) (c (+ a 3)) (a (+ a a))) (+ a b c)))) 14 5] ; (run-test let 2)
+    [(eval-one-exp '(let ((a 3)) (let ((a (let ((a (+ a a))) (+ a a)))) (+ a a)))) 24 6] ; (run-test let 3)
+    [(eval-one-exp '(let ((a (vector 0 1 2 3))) (vector-set! a 1 38) (vector-set! a 2 (vector-ref a 1)) (vector-ref a 2))) 38 6] ; (run-test let 4)
+    ;[(eval-one-exp '(let ([compose2 (lambda (f g) (lambda (x) (f (g x))))]) (let ([h  (let ([g (lambda (x) (+ 1 x))] [f (lambda (y) (* 2 y))]) (compose2 g f))]) (h 4)))) 9 6] ; (run-test let 5)
   )
 
   (lambda equal? ; (run-test lambda)

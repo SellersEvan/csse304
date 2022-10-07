@@ -89,101 +89,174 @@
 ; You will want to replace this with your parser that includes more expression types, more options for these types, and error-checking.
 
 
+; List of Specific Type
+(define list-of?
+  (lambda (predicate)
+    (lambda (o)
+      (and (list? o) (andmap predicate o)))))
 
+
+; Validate a list of Symbols => a, (a), (a b), (a b c), (a b . c)
 (define lambda-params?
   (lambda (o)
-    (or (symbol? o) (and (list? o) (andmap symbol? o)))))
+    (or (symbol? o) (empty? o) (and (pair? o) ((list-of? symbol?) (flatten o))))))
 
 
+; Let Paramaters
 (define let-params?
-  (lambda (o validateValue)
-    (and (list? o) (andmap (lambda (p)
-              (and (list? p) (equal? 2 (length p)) (symbol? (car p)) (validateValue (cadr p)))) o))))
-    
+  (lambda (validateValue)
+    (lambda (o)
+      (and (list? o) (andmap (lambda (p)
+                               (and (list? p) (equal? 2 (length p)) (symbol? (car p)) (validateValue (cadr p)))) o)))))
 
 
+; Check to see if literal => a, #t, #f, afdfss, 12.1, 23, (quote (lambda 2))
+(define literal?
+  (lambda (o)
+    (or (eq? #t o) (eq? #t o) (number? o) (symbol? o) (and (list? o) (not (empty? o)) (equal? 'quote (car o))))))
 
 
+; DataType for Expression
 (define-datatype expression expression?
   [var-exp
    (id symbol?)]
   [lit-exp
-   (data number?)]
-  [set-exp
-   (symbol symbol?)
-   (value expression?)]
+   (data (lambda (o) #t))]
   [lambda-exp
-   (id lambda-params?)
-   (body expression?)]
+   (params lambda-params?)
+   (body (list-of? expression?))]
   [app-exp
    (rator expression?)
-   (rand (lambda (o) (and (list? o) (andmap expression? o))))]
+   (rand (list-of? expression?))]
   [let-exp
-   (params (lambda (o) (let-params? o expression?)))
-   (body expression?)]
+   (name (lambda (o) (or (symbol? o) (equal? #f o))))
+   (params (let-params? expression?))
+   (body (list-of? expression?))]
   [let*-exp
-   (params (lambda (o) (let-params? o expression?)))
-   (body expression?)]
+   (name (lambda (o) (or (symbol? o) (equal? #f o))))
+   (params (let-params? expression?))
+   (body (list-of? expression?))]
   [letrec-exp
-   (params (lambda (o) (let-params? o expression?)))
-   (body expression?)]
-  )
+   (name (lambda (o) (or (symbol? o) (equal? #f o))))
+   (params (let-params? expression?))
+   (body (list-of? expression?))]
+  [if-exp
+   (if-exp expression?)
+   (true-exp expression?)
+   (false-exp (lambda (o) (or (expression? o) (equal? #f o))))]
+)
 
 
-; Procedures to make the parser a little bit saner.
-(define 1st car)
-(define 2nd cadr)
-(define 3rd caddr)
+; Parsing Error
+(define parse-error
+  (lambda (datum message)
+    (error 'parse-exp message datum)))
 
 
-(define parse-exp         
-  (lambda (datum)
-   (cond
+
+; Parse Lambda
+(define parse-lambda
+  (lambda (parse-exp)
+    (lambda (datum)
+      (if (and (< 2 (length datum)) (lambda-params? (cadr datum)))
+          (lambda-exp (cadr datum) (map parse-exp (cddr datum)))
+          (parse-error datum "Bad Lambda Syntax \"lambda (symbol ..) body ..\" => ~s")))))
+
+
+; Parse Let
+(define parse-let
+  (lambda (parse-exp let-type)
+    (lambda (datum)
+      (cond [(and (< 3 (length datum)) (symbol? (cadr datum)) ((let-params? parse-exp) (caddr datum)))
+             (let-type (cadr datum) (map (lambda (o) (list (car o) (parse-exp (cadr o)))) (caddr datum)) (map parse-exp (cdddr datum)))]
+            [(and (< 2 (length datum)) ((let-params? parse-exp) (cadr datum)))
+             (let-type #f (map (lambda (o) (list (car o) (parse-exp (cadr o)))) (cadr datum)) (map parse-exp (cddr datum)))]
+            [else (parse-error datum "Bad Let Syntax \"let [name] ((symbol expression) ..) body ..\" => ~s")]))))
+
+
+; Parse if
+(define parse-if
+  (lambda (parse-exp)
+    (lambda (datum)
+      (cond [(and (equal? 3 (length datum)) (parse-exp (cadr datum)) (parse-exp (caddr datum))) ; FIX REUSE
+             (if-exp (parse-exp (cadr datum)) (parse-exp (caddr datum)) #f)]
+            [(and (equal? 4 (length datum)) (parse-exp (cadr datum)) (parse-exp (caddr datum)) (parse-exp (cadddr datum)))  ; FIX REUSE
+             (if-exp (parse-exp (cadr datum)) (parse-exp (caddr datum)) (parse-exp (cadddr datum)))]
+            [else (parse-error datum "Bad If Syntax \"if expression true-body false-body ..\" => ~s")]))))
+
+
+; Parse Set!
+(define parse-set!
+  (lambda (parse-exp)
+    (lambda (datum)
+      (if (and (equal? 3 (length datum)) (symbol? (cadr datum)) (parse-exp (caddr datum)))
+          (app-exp (parse-exp (car datum)) (parse-exp (cadr datum)) (parse-exp (caddr datum)))
+          (parse-error datum "Bad Set Syntax \"set! symbol new-value\" => ~s")))))
+
+
+; Parse Literal
+(define parse-literal
+  (lambda (parse-exp)
+    (lambda (datum)
+      (if (and (list? datum) (not (vector? datum)) (not (empty? datum)) (equal? 'quote (car datum)))
+          (cadr datum)
+          datum))))
+
+
+; Set Parse Expression
+(define parse-exp
+  (lambda (datum)    
+    (cond
       [(symbol? datum) (var-exp datum)]
-      [(number? datum) (lit-exp datum)]
-      [(list? datum) (cond [(equal? (car datum) 'lambda)
-                            (if (and (< 2 (length datum)) (lambda-params? (2nd datum)))
-                               (lambda-exp (2nd datum) (parse-exp (cddr datum)))
-                                (error 'parse-exp "bad expression: ~s" datum))]
-                           [(equal? (car datum) 'if)
-                            (error 'parse-exp "bad expression: ~s" datum)]
-                           [(equal? (car datum) 'let)
-                            (if (and (< 2 (length datum)) (let-params? (cadr datum) parse-exp))
-                                (let-exp (map (lambda (o) (list (car o) (parse-exp (cadr o)))) (2nd datum)) (parse-exp (cddr datum)))
-                                (error 'parse-exp "bad expression: ~s" datum))]
-                           [(equal? (car datum) 'letrec)
-                            (if (and (< 2 (length datum)) (let-params? (cadr datum) parse-exp))
-                                (letrec-exp (map (lambda (o) (list (car o) (parse-exp (cadr o)))) (2nd datum)) (parse-exp (cddr datum)))
-                                (error 'parse-exp "bad expression: ~s" datum))]
-                           [(equal? (car datum) 'let*)
-                            (if (and (< 2 (length datum)) (let-params? (cadr datum) parse-exp))
-                                (let*-exp (map (lambda (o) (list (car o) (parse-exp (cadr o)))) (2nd datum)) (parse-exp (cddr datum)))
-                                (error 'parse-exp "bad expression: ~s" datum))]
-                           [(equal? (car datum) 'set!)
-                            (if (and (equal? 3 (length datum)) (symbol? (2nd datum)) (parse-exp (3rd datum)))
-                                (set-exp (2nd datum) (parse-exp (3rd datum)))
-                                (error 'parse-exp "bad expression: ~s" datum))]
-                           [else (let ([sym (parse-exp (1st datum))] [parms (map parse-exp (cdr datum))])
-                                                   (if (and sym (andmap (lambda (o) o) parms))
-                                                       (app-exp sym parms)
-                                                       (error 'parse-exp "bad expression: ~s" datum)))])]
-      [else (error 'parse-exp "bad expression: ~s" datum)])))
+      [(literal? datum) (lit-exp ((parse-literal parse-exp) datum))]
+      [(list? datum) (cond
+                       [(equal? (car datum) 'lambda) ((parse-lambda parse-exp) datum)]
+                       [(equal? (car datum) 'let) ((parse-let parse-exp let-exp) datum)]
+                       [(equal? (car datum) 'let*) ((parse-let parse-exp let*-exp) datum)]
+                       [(equal? (car datum) 'letrec) ((parse-let parse-exp letrec-exp) datum)]
+                       [(equal? (car datum) 'if) ((parse-if parse-exp) datum)]
+                       [(equal? (car datum) 'set!) ((parse-set! parse-exp) datum)]
+                       [else (let ([sym (parse-exp (car datum))] [parms (map parse-exp (cdr datum))])
+                               (if (and sym (andmap (lambda (o) o) parms))
+                                   (app-exp sym parms)
+                                   (parse-error datum "bad expression: ~s")))])]
+      [else (parse-error datum "bad expression: ~s")])))
+
+(parse-exp (quote '()))
+(parse-exp (quote '#(1 2)))
+
+; Unparse Let
+(define unparse-let
+  (lambda (unparse-exp let-type)
+    (lambda (name params body)
+      (if (not (equal? #f name))
+          (append (list let-type name (map (lambda (o) (list (car o) (unparse-exp (cadr o)))) params)) (map unparse-exp body))
+          (append (list let-type (map (lambda (o) (list (car o) (unparse-exp (cadr o)))) params)) (map unparse-exp body))))))
 
 
-(parse-exp (quote (lambda (x) (+ x 5))))
 
+; Unparse If
+(define unparse-if
+  (lambda (unparse-exp)
+    (lambda (if-exp true-exp false-exp)
+      (if (equal? #f false-exp)
+          (list 'if (unparse-exp if-exp) (unparse-exp true-exp))
+          (list 'if (unparse-exp if-exp) (unparse-exp true-exp) (unparse-exp false-exp))))))
+
+
+; Unparse
 (define unparse-exp
   (lambda (exp)
     (cases expression exp
       [var-exp (id) id]
       [lit-exp (data) data]
-      [lambda-exp (id body) (append (list 'lambda id) (unparse-exp body))]
+      [lambda-exp (params body) (append (list 'lambda params) (map unparse-exp body))]
       [app-exp (rator rand) (cons (unparse-exp rator) (map unparse-exp rand))]
-      [let-exp (params body) (append (list 'let (map (lambda (o) (list (car o) (unparse-exp (cadr o)))) params)) (unparse-exp body))]
-      [let*-exp (params body) (append (list 'let* (map (lambda (o) (list (car o) (unparse-exp (cadr o)))) params)) (unparse-exp body))]
-      [letrec-exp (params body) (append (list 'letrec (map (lambda (o) (list (car o) (unparse-exp (cadr o)))) params)) (unparse-exp body))]
-      [else 'x])))
-
+      [let-exp (name params body) ((unparse-let unparse-exp 'let) name params body)]
+      [let*-exp (name params body) ((unparse-let unparse-exp 'let*) name params body)]
+      [letrec-exp (name params body) ((unparse-let unparse-exp 'letrec) name params body)]
+      [if-exp (if-exp true-exp false-exp) ((unparse-if unparse-exp) if-exp true-exp false-exp)]
+      [else (parse-error exp "bad expression: ~s")])))
 
 
 ; An auxiliary procedure that could be helpful.

@@ -272,3 +272,19 @@
   (syntax-rules ()
     ([_]
      [error "nyi"])))
+
+
+
+
+
+(define foo (make-vector 1 2))
+(display foo)
+(let ((a foo))
+  (vector-set! a 0 0)
+  (display a))
+(display foo)
+
+
+
+
+

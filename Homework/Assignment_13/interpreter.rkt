@@ -3,6 +3,13 @@
 (require "../chez-init.rkt")
 (require "./validation-helpers.rkt")
 (provide eval-one-exp)
+(require racket/trace)
+
+
+
+; Things to FIX
+; - c**r c***r
+; - lambda fncs tests
 
 
 ;-------------------+
@@ -42,24 +49,20 @@
 )	
 
 ;; environment type definitions
-
-(define scheme-value?
-  (lambda (x) #t))
-  
 (define-datatype environment environment?
   [empty-env-record]
   [extended-env-record
    (syms (list-of? symbol?))
-   (vals (list-of? scheme-value?))
+   (vals (list-of? any?))
    (env environment?)])
 
 
 ; datatype for procedures.  At first there is only one
 ; kind of procedure, but more kinds will be added later.
-
 (define-datatype proc-val proc-val?
-  [prim-proc
-   (name symbol?)])
+  [prim-proc (name symbol?)]
+  [procedure (exp expression?)
+             (env environment?)])
 
 
 ;-------------------+
@@ -226,6 +229,7 @@
 
 
 ; Evalue Expression
+; Could Possible return an envirenment
 (define eval-exp
   (lambda (exp . env)
     (let ([env (if (not (empty? env)) (car env) init-env)])
@@ -234,36 +238,37 @@
         [var-exp (id)
                  (apply-env env id)]
         [app-exp (rator rands)
-                 (let ([proc-value (eval-exp rator)]
-                       [args (eval-rands rands env)])
-                   (apply-proc proc-value args))]
+                 (let ([proc-val  (eval-exp rator env)]
+                       [args-vals (eval-rands rands env)]
+                       [args-exps rands])
+                   (apply-proc proc-val args-vals args-exps env))]
         [if-exp (if-exp true-exp false-exp)
                 (if (true? (eval-exp if-exp)) (eval-exp true-exp) (eval-exp false-exp))]
-        [lambda-exp (params body) exp]      
+        [lambda-exp (params body) (procedure exp env)]
         [let-exp (name params body)
                  (let* ([syms (map car params)]
                         [vals (eval-rands (map cadr params) env)]
                         [letenv (extend-env syms vals env)])
-                   (eval-body body letenv))]
-                   ;(car (filter (lambda (o) (not (void? o))) (flatten (map (lambda (o) (eval-exp o letenv)) body)))))]
+                   (eval-bodies body letenv))]
         [else (error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 
 
 ; evaluate the list of operands, putting results into a list
-
 (define eval-rands
   (lambda (rands env)
     (map (lambda (o) (eval-exp o env)) rands)))
 
+
 ; Eval Multiple Bodies
-(define eval-body
-  (lambda (bodies env)
-    (car (flatten (let eval-body-helper ([bodies bodies] [env env])
-      (if (empty? bodies) '()
-          (let* ([result (eval-exp (car bodies) env)] [env (if (environment? result) result env)] [next (eval-body-helper (cdr bodies) env)])
-            (if (and (not (void? result)) (not (environment? result)))
-                (cons result next)
-                next))))))))
+(define eval-bodies
+  (lambda (bodies env-org)
+    (let ([res (let eval-body-helper ([bodies bodies] [env env-org])
+                 (if (empty? bodies) '()
+                     (let ([result (eval-exp (car bodies) env)])
+                       (if (not (void? result))
+                           (append (eval-body-helper (cdr bodies) env) (list result))
+                           (eval-body-helper (cdr bodies) env)))))])
+      (if (not (empty? res)) (car res) (void)))))
 
 
 ;  Apply a procedure to its arguments.
@@ -271,9 +276,10 @@
 ;  User-defined procedures will be added later.
 
 (define apply-proc
-  (lambda (proc-value args)
+  (lambda (proc-value args-vals args-exps env)
     (cases proc-val proc-value
-      [prim-proc (op) (apply-prim-proc op args)]
+      [prim-proc (op) (apply-prim-proc op args-vals args-exps env)]
+      [procedure (exp env) (apply-lambda exp args-vals args-exps env)]
       ; You will add other cases
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
@@ -295,8 +301,18 @@
 ; Usually an interpreter must define each 
 ; built-in procedure individually.  We are "cheating" a little bit.
 
+
+; Apply Lambabda
+(define apply-lambda
+  (lambda (op args args-exps env)
+      (cases expression op
+        [lambda-exp (params body) (eval-bodies body (extended-env-record params args env))]
+        [else (error 'apply-lambda "Unable to apply lambda: ~s"  op)])))
+
+
+; Apply Primitive Procedures
 (define apply-prim-proc
-  (lambda (prim-proc args)
+  (lambda (prim-proc args args-exps env)
       (case prim-proc
 
         ; Basic Math
@@ -322,7 +338,7 @@
         [(vector) ((valid-exp-params? 'vector any? 0 vector) args)]
         [(make-vector) (exp-make-vector args)]
         [(vector-ref) (exp-vector-ref args)]
-        [(vector-set!) (exp-vector-set args)]
+        [(vector-set!) ((exp-vector-set extend-env) args args-exps)]
         [(assq) ((valid-exp-params? 'assq (list any? (list-of? list?)) -1 assq) args)]
 
         ; List Based Access ; FIXME Checks for c**r and c***r
@@ -369,12 +385,22 @@
   (lambda ()
     (display "--> ")
     ;; notice that we don't save changes to the environment...
-    (let ([answer (top-level-eval (parse-exp (read)))])
-      ;; TODO: are there answers that should display differently?
-      (pretty-print answer) (newline)
+    (let* ([cli (read)] [answer (if (equal? cli '(exit)) cli (top-level-eval (parse-exp cli)))])
+      (cond [(equal? answer '(exit)) (exit)]
+            [(or (proc-val? answer)) (display '<interpreter-procedure>)]
+            [(and (list? answer) (ormap proc-val? answer)) (pretty-print (map (lambda (o) (if (proc-val? o) '<interpreter-procedure> o)) answer))]
+            [else (pretty-print answer)])
+      (newline)
       (rep))))  ; tail-recursive, so stack doesn't grow.
 
 
 (define eval-one-exp
   (lambda (x) (top-level-eval (parse-exp x))))
 
+(rep)
+
+;(eval-one-exp '((lambda (a) (+ a 1)) 1))
+;(eval-one-exp '(((lambda (f) ((lambda (x) (f (lambda (y) ((x x) y)))) (lambda (x) (f (lambda (y) ((x x) y)))))) (lambda (g) (lambda (n) (if (zero? n) 1 (* n (g (- n 1))))))) 6))
+;(eval-one-exp '(let ([compose2 (lambda (a) (+ a 1))]) (compose2 1)))
+;(eval-one-exp '(let ([compose2 (lambda (a) (lambda (b) (+ a b)))]) ((compose2 1) 1)))
+;(eval-one-exp '(let ([compose2 (lambda (f g) (lambda (x) (f (g x))))]) (let ([h  (let ([g (lambda (x) (+ 1 x))] [f (lambda (y) (* 2 y))]) (compose2 g f))]) (h 4))))

@@ -67,23 +67,27 @@
         (if (< (cadr params) (vector-length (car params)))
             (vector-ref (car params) (cadr params))
             (error 'vector-ref "Out of Bounds: index ~s" (cadr params)))
-        (error 'vector-ref "Bad paramaters expected: (#<procedure:number?> #<procedure:vector?>)"))))
+        (error 'vector-ref "Bad paramaters expected: (#<procedure:vector?> #<procedure:number?>)"))))
 
 
 ; Expression Vector set
 (define exp-vector-set
-  (lambda (params)
-    (if (and (equal? 3 (length params)) (vector? (car params)) (number? (cadr params)) (number? (caddr params)))
-        (if (< (cadr params) (vector-length (car params)))
-            (vector-set! (car params) (cadr params) (cadr params))
-            (error 'vector-set! "Out of Bounds: index ~s" (cadr params)))
-        (error 'vector-set! "Bad paramaters expected: (#<procedure:number?> #<procedure:vector?>)"))))
+  (lambda (extend-env)
+    (lambda (args args-exps)
+      (if (and (equal? 3 (length args)) (vector? (car args)) (number? (cadr args)) (number? (caddr args)))
+          (if (< (cadr args) (vector-length (car args)))
+              (if (equal? 'var-exp (car (car args-exps)))
+                  (vector-set! (car args) (cadr args) (caddr args))
+                  (error 'vector-set! "Error Immutable Object: ~s" (car args)))
+              (error 'vector-set! "Out of Bounds: index ~s" (cadr args)))
+          (error 'vector-set! "Bad paramaters expected: (#<procedure:number?> #<procedure:vector?>)")))))
 
 
 ; Expression Check if Procedure
 (define exp-procedure?
   (lambda (expression? proc-val?)
     (lambda (exp)
-      (cond [(and (expression? exp) (equal? 'lambda-exp (car exp))) #t]
+      (cond [(and (proc-val? exp) (equal? 'procedure (car exp))) #t]
             [(and (proc-val? exp) (equal? 'prim-proc (car exp))) #t]
             [else #f]))))
+

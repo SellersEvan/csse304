@@ -73,21 +73,78 @@
                                                (andmap-cps proc (cdr ls) k))))))))
                                                
 
+(define any? (lambda (o) #t))
+
+(define-datatype continuation continuation? 
+[init-k] 
+[list-k]
+[proc-k (proc procedure?) (k continuation?)]
+[append-set-k (elm any?) (k continuation?)]
+; [remove-k (remove-elm any?) (list-elm any?) (k continuation?)])
+[remove-k (elm any?) (rls list?) (k continuation?)])
+
+
+
+
+(define apply-k-ds
+  (trace-lambda (k res)
+	  (cases continuation k
+      [init-k () (display res)]
+      [list-k () (display res)]
+      [proc-k (proc k) (apply-k-ds k (proc res))]
+      [append-set-k (elm k)
+        (memq-cps elm res (proc-k (lambda (isMember) (if isMember res (cons elm res))) k))]
+      [remove-k (elm rls k)
+        (cond [(or (null? res) (empty? res)) (apply-k-ds k rls)]
+              [(equal? elm (car res)) (apply-k-ds k (append (reverse rls) (cdr res)))]
+              [else (apply-k-ds (remove-k elm (cons (car res) rls) k) (cdr res))])])))
+              ; [else (cons (car res) (apply-k-ds (remove-k elm k) (cdr res)))])])))
+      ; [remove-k (remove-elm list-elm k)
+      ;   (if (equal? remove-elm list-elm)
+      ;     (apply-k-ds k res)
+      ;     (apply-k-ds k (cons list-elm res)))])))
+
+
+(define 2nd-cps
+  (lambda (ls k)
+    (apply-k-ds (proc-k cdr (proc-k car k)) ls)))
+
+
+(define 3rd-cps
+  (lambda (ls k)
+    (apply-k-ds (proc-k cdr (proc-k cdr (proc-k car k))) ls)))
+
+
+(define memq-cps
+  (lambda (sym ls k)
+    (cond [(null? ls) (apply-k-ds k #f)]
+          [(eq? (car ls) sym) (apply-k-ds k #t)]
+          [else (memq-cps sym (cdr ls) k)])))
+
+
 (define free-vars-cps
   (lambda (a b)
     (nyi)))
 
-(define-datatype continuation continuation? 
-[init-k] 
-[list-k])
 
 (define union-cps
-  (lambda (a b c)
-    (nyi)))
+  (lambda (ls1 ls2 k)
+    (if (or (null? ls1) (empty? ls1))
+        (apply-k-ds k ls2)
+        (union-cps (cdr ls1) ls2 (append-set-k (car ls1) k))))) 
+
 
 (define remove-cps
-  (lambda (a b c)
-    (nyi)))
+  (lambda (elm ls k)
+    (apply-k-ds (remove-k elm '() k) ls)))
+
+
+; (define remove-cps
+;   (lambda (elm ls k)
+;     (if (or (null? ls) (empty? ls))
+;         (apply-k-ds k ls)
+;         (remove-cps elm (cdr ls) (remove-k elm (car ls) k)))))
+
 
 (define memoize
   (lambda (a b c)
@@ -104,4 +161,5 @@
     ([_]
      [error "nyi"])))
 
-(and)
+(remove-cps 'a '(b c e a d a) (init-k))
+(remove-cps 'b '(b c e a d) (init-k))

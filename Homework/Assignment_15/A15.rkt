@@ -75,15 +75,14 @@
 
 (define any? (lambda (o) #t))
 
+
 (define-datatype continuation continuation? 
 [init-k] 
 [list-k]
 [proc-k (proc procedure?) (k continuation?)]
 [append-set-k (elm any?) (k continuation?)]
-; [remove-k (remove-elm any?) (list-elm any?) (k continuation?)])
-[remove-k (elm any?) (rls list?) (k continuation?)])
-
-
+[add-k        (elm any?) (k continuation?)]
+[remove-k     (elm any?) (k continuation?)])
 
 
 (define apply-k-ds
@@ -94,15 +93,11 @@
       [proc-k (proc k) (apply-k-ds k (proc res))]
       [append-set-k (elm k)
         (memq-cps elm res (proc-k (lambda (isMember) (if isMember res (cons elm res))) k))]
-      [remove-k (elm rls k)
-        (cond [(or (null? res) (empty? res)) (apply-k-ds k rls)]
-              [(equal? elm (car res)) (apply-k-ds k (append (reverse rls) (cdr res)))]
-              [else (apply-k-ds (remove-k elm (cons (car res) rls) k) (cdr res))])])))
-              ; [else (cons (car res) (apply-k-ds (remove-k elm k) (cdr res)))])])))
-      ; [remove-k (remove-elm list-elm k)
-      ;   (if (equal? remove-elm list-elm)
-      ;     (apply-k-ds k res)
-      ;     (apply-k-ds k (cons list-elm res)))])))
+      [add-k (elm k) (apply-k-ds k (cons elm res))]
+      [remove-k (elm k)
+        (cond [(or (null? res) (empty? res)) (apply-k-ds k res)]
+              [(equal? elm (car res)) (apply-k-ds k (cdr res))]
+              [else (apply-k-ds (remove-k elm (add-k (car res) k)) (cdr res))])])))
 
 
 (define 2nd-cps
@@ -136,14 +131,7 @@
 
 (define remove-cps
   (lambda (elm ls k)
-    (apply-k-ds (remove-k elm '() k) ls)))
-
-
-; (define remove-cps
-;   (lambda (elm ls k)
-;     (if (or (null? ls) (empty? ls))
-;         (apply-k-ds k ls)
-;         (remove-cps elm (cdr ls) (remove-k elm (car ls) k)))))
+    (apply-k-ds (remove-k elm k) ls)))
 
 
 (define memoize

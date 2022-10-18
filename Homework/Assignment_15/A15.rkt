@@ -3,6 +3,12 @@
 (require "../chez-init.rkt")
 (provide set-of-cps make-k apply-k 1st-cps map-cps make-cps domain-cps member?-cps andmap-cps free-vars-cps continuation? init-k list-k union-cps remove-cps memoize subst-leftmost)
 
+; Question for Part 3
+; The savings in time is less drastic for memoize-fib because we are using memoize to build a generalized
+; memoization functions. While the fib function from the powerpoint is custom build, all responses are
+; saved, this includes the sub calls to fib. The generalized one we built memoize-fib, only saves the
+; top level call responses made against memoize-fib.
+
 
 (define set-of ; removes duplicates to make a set
   (lambda (s)
@@ -104,7 +110,7 @@
       [free-vars-k (exp k)
         (cond [(or (null? exp) (empty? exp)) (apply-k-ds k res)]
               [(symbol? exp) (apply-k-ds k (list exp))]
-              [(eq? (car exp) 'lambda) (apply-k-ds (free-vars-k (caddr exp) (remove-k (car (cadr exp)) k)) res)]             
+              [(eq? (car exp) 'lambda) (apply-k-ds (free-vars-k (3rd-cps exp (init-k)) (remove-k (car (2nd-cps exp (init-k))) k)) res)]             
               [else (apply-k-ds (free-vars-k (car exp) (union-k res (free-vars-k (cdr exp) k))) res)])])))
 
 
@@ -143,12 +149,47 @@
 
 
 (define memoize
-  (lambda (a b c)
-    (nyi)))
+  (lambda (func hash equiv?)
+    (let ([memhash (make-custom-hash equiv? hash)])
+      (lambda args
+        (if (dict-has-key? memhash args)
+          (dict-ref memhash args)
+          (let ([res (apply func args)])
+            (dict-set! memhash args res)
+            res))))))
+
+
+(define-syntax with-values
+  (syntax-rules ()
+    [(_ expr consumer)
+      (call-with-values
+        (lambda () expr)
+        consumer)]))
+
+(define-syntax mvlet
+  (syntax-rules ()
+    ((_ ((x ...) e0) e1 e2 ...)
+      (with-values e0
+        (lambda (x ...) e1 e2 ...)))))
+
 
 (define subst-leftmost
-  (lambda (a b c d)
-    (nyi)))
+  (lambda (replace pattern ls predicate)
+    (with-values
+      (let subst-leftmost-helper ([replace replace] [pattern pattern] [ls ls] [predicate predicate])
+        (cond [(symbol? ls)
+                (if (predicate pattern ls)
+                    (values replace #t)
+                    (values ls #f))]
+              [(or (null? ls) (empty? ls)) (values ls #f)]
+              [else (mvlet ((val hasMatched) (subst-leftmost-helper replace pattern (car ls) predicate))
+                (if hasMatched
+                  (values (cons val (cdr ls)) #t)
+                  (mvlet ((rval rhasMatched) (subst-leftmost-helper replace pattern (cdr ls) predicate))
+                    (values (cons val rval) rhasMatched))))]))
+      (lambda (x y) x))))
+
+
 
 ;;--------  Used by the testing mechanism   ------------------
 

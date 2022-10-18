@@ -82,14 +82,15 @@
 [proc-k (proc procedure?) (k continuation?)]
 [append-set-k (elm any?) (k continuation?)]
 [add-k        (elm any?) (k continuation?)]
-[remove-k     (elm any?) (k continuation?)])
+[remove-k     (elm any?) (k continuation?)]
+[free-vars-k  (k continuation?)])
 
 
 (define apply-k-ds
   (trace-lambda (k res)
 	  (cases continuation k
-      [init-k () (display res)]
-      [list-k () (display res)]
+      [init-k () res]
+      [list-k () (list res)]
       [proc-k (proc k) (apply-k-ds k (proc res))]
       [append-set-k (elm k)
         (memq-cps elm res (proc-k (lambda (isMember) (if isMember res (cons elm res))) k))]
@@ -97,7 +98,12 @@
       [remove-k (elm k)
         (cond [(or (null? res) (empty? res)) (apply-k-ds k res)]
               [(equal? elm (car res)) (apply-k-ds k (cdr res))]
-              [else (apply-k-ds (remove-k elm (add-k (car res) k)) (cdr res))])])))
+              [else (apply-k-ds (remove-k elm (add-k (car res) k)) (cdr res))])]
+      [free-vars-k (k)
+        (cond [(or (null? res) (empty? res)) (apply-k-ds k res)]
+              [(symbol? res) (apply-k-ds k (list res))]
+              [(eq? (car res) 'lambda) (apply-k-ds (free-vars-k (remove-k (car (cadr res)) k)) (caddr res))]
+              [else (union-cps (apply-k-ds (free-vars-k (init-k)) (cadr res)) (apply-k-ds (free-vars-k (init-k)) (car res)) k)])])))
 
 
 (define 2nd-cps
@@ -117,11 +123,6 @@
           [else (memq-cps sym (cdr ls) k)])))
 
 
-(define free-vars-cps
-  (lambda (a b)
-    (nyi)))
-
-
 (define union-cps
   (lambda (ls1 ls2 k)
     (if (or (null? ls1) (empty? ls1))
@@ -132,6 +133,11 @@
 (define remove-cps
   (lambda (elm ls k)
     (apply-k-ds (remove-k elm k) ls)))
+
+
+(define free-vars-cps
+  (lambda (exp k)
+    (apply-k-ds (free-vars-k k) exp)))
 
 
 (define memoize
@@ -149,5 +155,5 @@
     ([_]
      [error "nyi"])))
 
-(remove-cps 'a '(b c e a d a) (init-k))
-(remove-cps 'b '(b c e a d) (init-k))
+; (free-vars-cps '((lambda (x) y) (lambda (y) x)) (init-k))
+; (free-vars-cps '(x x) (list-k))

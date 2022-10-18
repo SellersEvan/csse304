@@ -81,29 +81,31 @@
 [list-k]
 [proc-k (proc procedure?) (k continuation?)]
 [append-set-k (elm any?) (k continuation?)]
+[union-k      (ls list?) (k continuation?)]
 [add-k        (elm any?) (k continuation?)]
 [remove-k     (elm any?) (k continuation?)]
-[free-vars-k  (k continuation?)])
+[free-vars-k  (exp any?) (k continuation?)])
 
 
 (define apply-k-ds
-  (trace-lambda (k res)
+  (lambda (k res)
 	  (cases continuation k
       [init-k () res]
       [list-k () (list res)]
       [proc-k (proc k) (apply-k-ds k (proc res))]
       [append-set-k (elm k)
         (memq-cps elm res (proc-k (lambda (isMember) (if isMember res (cons elm res))) k))]
+      [union-k (ls k) (union-cps ls res k)]
       [add-k (elm k) (apply-k-ds k (cons elm res))]
       [remove-k (elm k)
         (cond [(or (null? res) (empty? res)) (apply-k-ds k res)]
               [(equal? elm (car res)) (apply-k-ds k (cdr res))]
               [else (apply-k-ds (remove-k elm (add-k (car res) k)) (cdr res))])]
-      [free-vars-k (k)
-        (cond [(or (null? res) (empty? res)) (apply-k-ds k res)]
-              [(symbol? res) (apply-k-ds k (list res))]
-              [(eq? (car res) 'lambda) (apply-k-ds (free-vars-k (remove-k (car (cadr res)) k)) (caddr res))]
-              [else (union-cps (apply-k-ds (free-vars-k (init-k)) (cadr res)) (apply-k-ds (free-vars-k (init-k)) (car res)) k)])])))
+      [free-vars-k (exp k)
+        (cond [(or (null? exp) (empty? exp)) (apply-k-ds k res)]
+              [(symbol? exp) (apply-k-ds k (list exp))]
+              [(eq? (car exp) 'lambda) (apply-k-ds (free-vars-k (caddr exp) (remove-k (car (cadr exp)) k)) res)]             
+              [else (apply-k-ds (free-vars-k (car exp) (union-k res (free-vars-k (cdr exp) k))) res)])])))
 
 
 (define 2nd-cps
@@ -137,7 +139,7 @@
 
 (define free-vars-cps
   (lambda (exp k)
-    (apply-k-ds (free-vars-k k) exp)))
+    (apply-k-ds (free-vars-k exp k) '())))
 
 
 (define memoize
@@ -155,5 +157,3 @@
     ([_]
      [error "nyi"])))
 
-; (free-vars-cps '((lambda (x) y) (lambda (y) x)) (init-k))
-; (free-vars-cps '(x x) (list-k))

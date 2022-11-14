@@ -1,3 +1,5 @@
+#lang racket
+(require "./exam2.rkt")
 
 (define (test-remove-depth-cps)
   (let ([correct '(((a b c d e))
@@ -221,3 +223,4 @@
 
 (define r run-all)
 
+(r)

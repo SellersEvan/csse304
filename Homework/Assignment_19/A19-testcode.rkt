@@ -1,5 +1,6 @@
 #lang racket
 
+
 ; To use these tests:
 ; Click "Run" in the upper right
 ; (r)
@@ -11,29 +12,47 @@
 (require "A19.rkt")
 (provide get-weights get-names individual-test test)
 
+; we'll use this when we want to run a typecheck but we expect it to fail
+; do to a typing error.  The error symbol is returned.
+(define expect-error
+  (lambda (code)
+    (with-handlers ([symbol? (lambda (x) x)])
+      (typecheck code)
+      'unexpected-success)))
+  
+
 (define test (make-test ; (r)
-  (sum-cps equal? ; (run-test sum-cps)
-    [(begin (set!-slist '()) (set!-k (id-k)) (sum-cps)) 0 1] ; (run-test sum-cps 1)
-    [(begin (set!-slist '(1)) (set!-k (list-k)) (sum-cps)) '(1) 3] ; (run-test sum-cps 2)
-    [(begin (set!-slist '(1 2)) (set!-k (id-k)) (sum-cps)) 3 3] ; (run-test sum-cps 3)
-    [(begin (set!-slist '((1))) (set!-k (id-k)) (sum-cps)) 1 3] ; (run-test sum-cps 4)
-    [(begin (set!-slist '((1) 2)) (set!-k (id-k)) (sum-cps)) 3 4] ; (run-test sum-cps 5)
-    [(begin (set!-slist '((1) () 2 (3))) (set!-k (id-k)) (sum-cps)) 6 5] ; (run-test sum-cps 6)
-    [(begin (set!-slist '(1 2 (((() 4 ))))) (set!-k (id-k)) (sum-cps)) 7 5] ; (run-test sum-cps 7)
-    [(begin (set!-slist '((1) ((2 (3 ()) (((4 5))) () 6)))) (set!-k (id-k)) (sum-cps)) 21 7] ; (run-test sum-cps 8)
+  (typecheck equal? ; (run-test typecheck)
+    [(typecheck 1) 'num 1] ; (run-test typecheck 1)
+    [(typecheck #f) 'bool 1]
+    [(typecheck '(lambda bool (x) 2)) '(bool -> num) 2]
+    [(typecheck '(lambda bool (x) (lambda num (y) #f))) '(bool -> (num -> bool)) 2]
+    [(typecheck '(lambda bool (x) x)) '(bool -> bool) 2]
+    [(typecheck '(lambda (bool -> num) (x) (lambda num (y) x))) '((bool -> num) -> (num -> (bool -> num))) 2]
+    [(expect-error 'foobar) 'unbound-var 2]
+    [(expect-error '((lambda (num -> num) (x) 1) (lambda num (y) x))) 'unbound-var 2]
+    [(typecheck 'zero?) '(num -> bool) 2]
+    [(typecheck '-) '(num -> (num -> num)) 2]
+    [(typecheck '((- 10) 3)) 'num 2]
+    [(expect-error '(1 1)) 'bad-procedure 2]
+    [(expect-error '(lambda bool (f) (f 1))) 'bad-procedure 2]
+    [(typecheck '((lambda num (n) ((- n) 1)) 9)) 'num 2]
+    [(expect-error '((lambda num (n) ((- n) 1)) #t)) 'bad-parameter 2]
+    [(expect-error '((- #t) 3)) 'bad-parameter 2]
+    [(expect-error '((- 10) #f)) 'bad-parameter 2]
+    [(typecheck '(if #t 1 2)) 'num 2]
+    [(typecheck '((lambda bool (y) (if y (lambda num (x) #t) (lambda num (x) #t))) #f))
+     '(num -> bool) 2]
+    [(expect-error '(if 3 1 2)) 'bad-if-test 2]
+    [(expect-error '(if #f #f 2)) 'bad-if-branches 2]
+    [(expect-error '((lambda bool (y) (if y (lambda num (x) 1) (lambda num (x) y))) #f))
+     'bad-if-branches 2]
+    [(typecheck '(letrec num f (lambda bool (p) (f p)) f)) '(bool -> num) 2]
+    [(typecheck '(letrec num f (lambda num (n) (if (zero? n) 77 (f ((- n ) 1)))) (f 3))) 'num 2]
+    [(expect-error '(letrec num f (lambda bool (p) p) f)) 'bad-letrec-types 2]
+    [(expect-error '(letrec bool f (lambda num (n) (if (zero? n) 77 (f ((- n ) 1)))) (f 3))) 'bad-if-branches 2]
   )
 
-  (flatten-cps equal? ; (run-test flatten-cps)
-    [(begin (set!-slist '()) (set!-k (id-k)) (flatten-cps)) '() 1] ; (run-test flatten-cps 1)
-    [(begin (set!-slist '(a)) (set!-k (id-k)) (flatten-cps)) '(a) 2] ; (run-test flatten-cps 2)
-    [(begin (set!-slist '(a b)) (set!-k (id-k)) (flatten-cps)) '(a b) 3] ; (run-test flatten-cps 3)
-    [(begin (set!-slist '(a d e c g b t)) (set!-k (list-k)) (flatten-cps)) '((a d e c g b t)) 3] ; (run-test flatten-cps 4)
-    [(begin (set!-slist '(d a e c g b (t))) (set!-k (id-k)) (flatten-cps)) '(d a e c g b t) 6] ; (run-test flatten-cps 5)
-    [(begin (set!-slist '(((d a () (e) c ) g b) t)) (set!-k (length-k)) (flatten-cps)) 7 6] ; (run-test flatten-cps 6)
-    [(begin (set!-slist '(((a d () (((e))) c ) b g) t)) (set!-k (id-k)) (flatten-cps)) '(a d e c b g t) 8] ; (run-test flatten-cps 7)
-    [(begin (set!-slist '(t ((a d () (((e))) c ) g ((())) b))) (set!-k (id-k)) (flatten-cps)) '(t a d e c g b) 10] ; (run-test flatten-cps 8)
-    [(begin (set!-slist '(( () (a d () c (((e)))) g ((())) b) t)) (set!-k (id-k)) (flatten-cps)) '(a d c e g b t) 10] ; (run-test flatten-cps 9)
-  )
 ))
 
 (implicit-run test) ; run tests as soon as this file is loaded

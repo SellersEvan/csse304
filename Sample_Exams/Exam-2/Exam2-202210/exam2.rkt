@@ -1,3 +1,8 @@
+#lang racket
+(require racket/trace)
+(require "./interpreter.rkt")
+(provide remove-depth-cps swap! eval-one-exp)
+
 ;; CSSE 304 Exam #2  Oct 27, 2021
 
 ;; You may use your notes, Chez Scheme, the three textbooks from the
@@ -75,20 +80,31 @@
 ;;
 ;; I've named this remove-depth-example so hopefully you will not accidentally call it
 ;; from you CPS solution - of course that would be wrong.
-(define (remove-depth-example depth slist)
-  (if (null? slist)
-      '()
-      (let ((recurse (remove-depth-example depth (cdr slist))))
-        (if (symbol? (car slist))
-            (cons (car slist) recurse)
-            (if (= depth 2)
-                (append (car slist) recurse)
-                (cons (remove-depth-example (sub1 depth) (car slist)) recurse))))))
+(define remove-depth-example
+  (lambda (depth slist)
+    (if (null? slist)
+        '()
+        (let ((recurse (remove-depth-example depth (cdr slist))))
+          (if (symbol? (car slist))
+              (cons (car slist) recurse)
+              (if (= depth 2)
+                  (append (car slist) recurse)
+                  (cons (remove-depth-example (sub1 depth) (car slist)) recurse)))))))
 
 
 (define remove-depth-cps
   (lambda (depth slist k)
-    'your-solution-here))
+    (if (null? slist)
+      (apply-k k '())
+      (if (symbol? (car slist))
+          (remove-depth-cps depth (cdr slist) (make-k (lambda (rslist) (apply-k k (cons (car slist) rslist)))))
+          (if (= depth 2)
+            (remove-depth-cps depth (cdr slist) (lambda (recurse)
+              (append-cps (car slist) recurse k)))
+            (remove-depth-cps depth (cdr slist) (lambda (recurse)
+              (remove-depth-cps (sub1 depth) (car slist) (lambda (front)
+                (apply-k k (cons front recurse)))))))))))
+
 
 
 ;; -------------------------------------------------------------------
@@ -116,6 +132,11 @@
 
 ;; be aware that if you change your define syntax, you must reload the
 ;; test cases for your changes to take effect.
+
+(define-syntax swap!
+  (syntax-rules ()
+    ((_ x y) (let ([temp x]) (set! x y) (set! y temp)))))
+
 
 ;; -------------------------------------------------------------------
 
@@ -159,6 +180,7 @@
 ;; Note that you do not have to worry about the behavior if the *test-exp*
 ;; has some sort of side effect.  You can safely execute that expression
 ;; once for each comparsion you need to do.
+
 
 ;; -------------------------------------------------------------------
 

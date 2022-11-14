@@ -1,132 +1,147 @@
 #lang racket
 
-; CSSE 304:  A19
-
-; IN THIS FILE:
-; Starting-code - CPS with continuations represented by Scheme procs
-; Trace-it code - may be useful for debugging imperative-form code.
-
-
-; NOTES ABOUT THE ASSIGNMENT
-; Requirements for imperative form:
-;  These procedures in CPS (all are thunks - take no arguments):
-;    append-cps, cons-cps, +-cps, apply-k, flatten-cps,
-;    list-sum-cps, helper procedure in cps-snlist-recur,
-;  the procedures that are arguments to cps-snlist-recur.
-;  You must define these global variables:  slist, k
-;    The test code sets those variables in each test case. 
-;    You may want the other variables used by imperative form
-;    to also be global.
-
-; You are allowed to go straight to imperative form without
-;   first doing the intermediate DS-continuations form,
-;   but I do not recommend it.
-
-;;--------------- Starting code ----------------
-
 (require "../chez-init.rkt")
-(provide set!-slist set!-k id-k list-k length-k sum-cps flatten-cps)
+(provide typecheck)
 
-; TODO: Convert lambda cps below to define-datatype CPS. Since the goal
-; is imperative form, the continuation datatypes shouldn't have fields.
-(define make-k
-  (lambda (k) k))
+(define-datatype type type?
+  [number-t]
+  [boolean-t]
+  [proc-t (param type?) (ret type?)])
 
-(define id-k (make-k (lambda (v) v)))
-(define list-k (make-k list))
-(define length-k (make-k length))
+(define unparse-type
+  (lambda (t)
+    (if (eqv? t 'unknown-expression)
+        'unknown-expression ; just allow our little error type to pass through
+        (cases type t
+          [number-t () 'num]
+          [boolean-t () 'bool]
+          [proc-t (p r) (list (unparse-type p) '-> (unparse-type r))]))))
+            
 
-(define apply-k
-  (lambda (k args)
-    (k args)))
+(define parse-type
+  (lambda (type-exp)
+    (cond [(eqv? 'num type-exp) (number-t)]
+          [(eqv? 'bool type-exp) (boolean-t)]
+          [(and (list? type-exp)
+                (= (length type-exp) 3)
+                (eqv? '-> (second type-exp)))
+           (proc-t (parse-type (first type-exp))
+                   (parse-type (third type-exp)))]
+          [else (error 'parse-type "unknown type ~s" type-exp)])))
 
-(define cps-snlist-recur
-  (lambda (base car-item-proc-cps car-list-proc-cps)
-    (letrec
-        ([helper
-          (lambda (L k)
-            (cond [(null? L)(apply-k k base)]
-                  [(not (or (null? (car L)) (pair? (car L))))
-                   (helper (cdr L)
-                           (make-k (lambda (helped-cdr)
-                                     (car-item-proc-cps
-                                      (car L)
-                                      helped-cdr
-                                      k))))]
-                  [else
-                   (helper (car L)
-                           (make-k
-                            (lambda (helped-car)
-                              (helper (cdr L) (make-k (lambda (helped-cdr)
-                                                        (car-list-proc-cps helped-car
-                                                                           helped-cdr
-                                                                           k)))))))]))])
-      helper)))
-				    
-(define read-flatten-print
-  (lambda ()
-    (display "enter slist to flatten: ")
-    (let ([slist (read)])
-      (unless (eq? slist 'exit)
-        (flatten-cps slist 
-                     (lambda (val)
-                       (pretty-print val)
-                       (read-flatten-print)))))))
-(define append-cps 
-  (lambda (a b k)
-    (if (null? a)
-        (apply-k k b)
-        (append-cps (cdr a)
-                    b
-                    (make-k (lambda (appended-cdr)
-                              (apply-k k (cons (car a)
-                                               appended-cdr))))))))
-(define cons-cps
-  (lambda (a b k)
-    (apply-k k (cons a b))))
+(define-datatype expression expression?
+  [var-exp (name symbol?)]
+  [lit-exp (val (lambda(x) (or (number? x) (boolean? x))))]
+  [if-exp (test-exp expression?) (then-exp expression?) (else-exp expression?)]
+  [lam-exp (var symbol?) (ptype type?) (body expression?)]
+  [letrec-exp (recurse-var symbol?) (ret-type type?) (lambda lam-exp?) (body expression?)]
+  [app-exp (rator expression?) (rand expression?)])
 
-(define +-cps
-  (lambda (a b k)
-    (apply-k k (+ a b))))
+; our letrec expression can only contain lambda initializers
+(define lam-exp?
+  (lambda (exp)
+    (if (expression? exp)
+        (cases expression exp
+          [lam-exp (var ptype body) #t]
+          [else #f])
+        #f)))
 
-(define flatten-cps
-  (cps-snlist-recur '() cons-cps append-cps))
-
-(define sum-cps
-  (cps-snlist-recur 0 +-cps +-cps))
-
-;------------------------------------------------
-;  Some code that may help in your imperative form code.
-
-; Required definitions:
-(define slist #f)  ; it's actually an snlist.
-(define k #f)      ; the continuation, of course!
-
-; Other variables that you need may be defined 
-; globally like these, or you can define them inside
-; a letrec that also contains definitions of all of
-; your cps procedures.  I recommend global for this assignment.
-; This is because you only have a few days to complete A19.
-; I only needed three other variables, a, b, and v.
-; None of those need to be initialized before
-; starting a new computation.
-
-; I found the following code to be invaluable for 
-; tracing and debugging my imperative-form code.
-; Simply place a (trace-it "procedureName") call as the first body
-; of each CPS procedure (including helper and apply-k)
-
-(define *tracing* #f) ; set this to true when you want to use trace everything.
-
-(define trace-it       ; Adjust this for whatever 
-  (lambda (proc-name)  ; variables you have 
-    (when *tracing*
-      (printf "slist=~s" slist) ; Add more variables you define here
-      (printf "k=~s~%" k))))
+(define parse
+  (lambda (code)
+    (cond [(symbol? code) (var-exp code)]
+          [(number? code) (lit-exp code)]
+          [(boolean? code) (lit-exp code)]
+          [(list? code)
+           (when (< (length code) 2) (error 'short-app "param list too short ~s" code))
+           (if (symbol? (car code))
+               (case (car code)
+                 [(if) (unless (= (length code) 4) (error 'bad-if "bad if"))
+                       
+                       (if-exp (parse (second code))
+                               (parse (third code))
+                               (parse (fourth code)))]
+                 [(lambda) (unless (= (length code) 4) (error 'bad-lambda "bad lambda"))
+                           (let ([type (second code)]
+                                 [param (third code)])
+                             (unless (and
+                                      (pair? param)
+                                      (symbol? (car param)))
+                               (error 'bad-param "bad lambda param ~s" (cadr code)))
+                             (lam-exp (car param) (parse-type type) (parse (fourth code))))
+                                 ]
+                 [(letrec) (unless (= (length code) 5) (error 'bad-letrec "wrong length"))
+                           (let [(ret (parse-type (second code)))
+                                 (var (third code))
+                                 (lam (parse (fourth code)))
+                                 (body (parse (fifth code)))]
+                             (unless (symbol? var) (error 'bad-lectrec "bad var"))
+                             (unless (lam-exp? lam) (error 'bad-lectrec "lamdba required"))
+                             (letrec-exp var ret lam body))]
+                             
+                 [else (parse-app code)])
+               (parse-app code))]
+           )))
 
 
-;-----------------------------------------------
-;  Used by the tests.
+(define parse-app
+  (lambda (code)
+    (app-exp (parse (first code))
+                   (parse (second code)))))
 
-(define set!-slist (lambda (new-slist) (set! slist new-slist)))
-(define set!-k (lambda (new-k) (set! k new-k)))
+
+(define typecheck
+  (lambda (code)
+    (unparse-type (typecheck-exp (parse code)))))
+
+
+(define typecheck-exp
+  (lambda (exp)
+    (typecheck-exp-env exp (list 'zero? (proc-t (number-t) (boolean-t)) (list '- (proc-t (number-t) (proc-t (number-t) (number-t))) '())))))
+
+
+(define apply-env
+  (lambda (var env)
+    (cond [(empty? env) (raise 'unbound-var)]
+          [(equal? var (car env)) (cadr env)]
+          [else (apply-env var (caddr env))])))
+
+
+(define typecheck-exp-env
+  (lambda (exp env)
+    (cases expression exp
+      [lit-exp (value) (if (number? value) (number-t) (boolean-t))]
+      [lam-exp (var ptype body) (proc-t ptype (typecheck-exp-env body (list var ptype env)))]
+      [var-exp (var) (apply-env var env)]
+      [if-exp (test-exp then-exp else-exp)
+        (cond
+          [(not (equal? (boolean-t) (typecheck-exp-env test-exp env))) (raise 'bad-if-test)]
+          [(not (equal? (typecheck-exp-env then-exp env) (typecheck-exp-env else-exp env))) (raise 'bad-if-branches)]
+          [else (begin (typecheck-exp-env then-exp env) (typecheck-exp-env else-exp env))])]
+      [letrec-exp (recurse-var ret-type lambda body)
+        (let ([recType (typecheck-exp-env lambda (list recurse-var (proc-t (caddr lambda) ret-type) env))])
+          (if (equal? (caddr recType) ret-type)
+            (typecheck-exp-env body (list recurse-var recType env))
+            (raise 'bad-letrec-types)))]
+      [app-exp (rator rand)
+        (cases expression rator
+          [lam-exp (var ptype body)
+            (let ([rptype (typecheck-exp-env rand env)])
+              (if (equal? ptype rptype)
+                (caddr (typecheck-exp-env rator (list var rptype env)))
+                (raise 'bad-parameter)))]
+          [app-exp (srator srand)
+            (let ([rtype (typecheck-exp-env rand env)] [rptype (typecheck-exp-env rator env)])
+              (if (equal? (caddr rptype) rtype)
+                (caddr rptype)
+                (raise 'bad-parameter)))]
+          [var-exp (var)
+            (let ([vtype (apply-env var env)] [rtype (typecheck-exp-env rand env)])
+              (if (equal? 'proc-t (car vtype))
+                (if (equal? (cadr vtype) rtype)
+                  (caddr vtype) ; cadr vtype
+                  (raise 'bad-parameter))
+                (raise 'bad-procedure)))]
+          [else (raise 'bad-procedure)]
+          )]
+      [else 'unknown-expression])))
+
